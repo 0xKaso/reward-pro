@@ -56,6 +56,7 @@ contract Unipool is LPTokenWrapper, IRewardDistributionRecipient {
     event RewardPaid(address indexed user, uint256 reward);
 
     modifier updateReward(address account) {
+        _distributeReward();
         rewardPerTokenStored = rewardPerToken();
         lastUpdateTime = lastTimeRewardApplicable();
         if (account != address(0)) {
@@ -134,18 +135,21 @@ contract Unipool is LPTokenWrapper, IRewardDistributionRecipient {
     uint public totalAdminClaim;
     uint rewardTick;
 
-    function _updateBonusPerBlock() internal {
-        uint balance = snx.balanceOf(address(this));
-        uint total = balance + totalClaimed + totalAdminClaim;
+    function _distributeReward() internal {
+        // TODO
+        if (block.timestamp - lastUpdateTime > 10 seconds) {
+            uint balance = snx.balanceOf(address(this));
+            uint total = balance + totalClaimed + totalAdminClaim;
 
-        uint ownerReward = (total * 3) / 10 - totalAdminClaim;
-        uint userReward = (total * 7) / 10;
-        
-        if (rewardTick < userReward)
-            notifyRewardAmount(userReward - rewardTick);
-        if (ownerReward > 0) snx.safeTransfer(owner(), ownerReward);
+            uint ownerReward = (total * 3) / 10 - totalAdminClaim;
+            uint userReward = (total * 7) / 10;
 
-        rewardTick = userReward;
+            if (rewardTick < userReward)
+                notifyRewardAmount(userReward - rewardTick);
+            if (ownerReward > 0) snx.safeTransfer(owner(), ownerReward);
+
+            rewardTick = userReward;
+        }
     }
 
     function adminWithdraw(uint amount) external onlyOwner {
