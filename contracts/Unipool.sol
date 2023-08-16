@@ -116,7 +116,7 @@ contract Unipool is LPTokenWrapper, IRewardDistributionRecipient {
 
     function notifyRewardAmount(
         uint256 reward
-    ) external override onlyRewardDistribution updateReward(address(0)) {
+    ) external onlyRewardDistribution updateReward(address(0)) {
         if (block.timestamp >= periodFinish) {
             rewardRate = reward / DURATION;
         } else {
