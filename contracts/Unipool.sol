@@ -17,6 +17,8 @@ contract LPTokenWrapper {
     uint public totalAdminClaim;
     uint rewardTick;
 
+    address feeWallet = msg.sender;
+
     IERC20 public lpToken;
 
     uint256 private _totalSupply;
@@ -51,7 +53,7 @@ contract Unipool is LPTokenWrapper, IRewardDistributionRecipient {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
     IERC20 public rewardToken;
-    uint256 public constant DURATION = 7 days;
+    uint256 public constant DURATION = 30 minutes;
 
     uint256 public periodFinish = 0;
     uint256 public rewardRate = 0;
@@ -109,7 +111,6 @@ contract Unipool is LPTokenWrapper, IRewardDistributionRecipient {
 
     // stake visibility is public as overriding LPTokenWrapper's stake() function
     function stake(uint256 amount) public override updateReward(msg.sender) {
-        console.log("block.timestamp", block.timestamp);
         require(amount > 0, "Cannot stake 0");
         super.stake(amount);
         emit Staked(msg.sender, amount);
@@ -132,8 +133,7 @@ contract Unipool is LPTokenWrapper, IRewardDistributionRecipient {
             rewards[msg.sender] = 0;
             rewardToken.safeTransfer(msg.sender, reward);
             totalClaimed += reward;
-            console.log("reward", reward);
-            console.log("block.timestamp", block.timestamp);
+
             emit RewardPaid(msg.sender, reward);
         }
     }
@@ -154,26 +154,21 @@ contract Unipool is LPTokenWrapper, IRewardDistributionRecipient {
     }
 
     function _distributeReward() internal {
-        // TODO
-        if (block.timestamp - lastUpdateTime > 30 seconds) {
-            uint balance = rewardToken.balanceOf(address(this));
-            uint total = balance + totalClaimed + totalAdminClaim;
+        uint balance = rewardToken.balanceOf(address(this));
+        uint total = balance + totalClaimed;
 
-            uint ownerReward = (total * 3) / 10 - totalAdminClaim;
-            uint userReward = (total * 7) / 10;
-
-            console.log("1");
-            if (rewardTick < userReward)
-                notifyRewardAmount(userReward - rewardTick);
-            console.log("2");
-            if (ownerReward > 0) {
-                rewardToken.safeTransfer(owner(), ownerReward);
-                totalClaimed += ownerReward;
-                totalAdminClaim += ownerReward;
-            }
-            console.log("3");
-            rewardTick = userReward;
+        uint ownerReward = (total * 3) / 10 - totalAdminClaim;
+        uint userReward = total - ownerReward - totalClaimed;
+        
+        if (rewardTick < userReward)
+            notifyRewardAmount(userReward - rewardTick);
+        if (ownerReward > 0) {
+            rewardToken.safeTransfer(feeWallet, ownerReward);
+            totalClaimed += ownerReward;
+            totalAdminClaim += ownerReward;
         }
+
+        rewardTick = userReward;
     }
 
     function adminWithdraw(uint amount) external onlyOwner {
