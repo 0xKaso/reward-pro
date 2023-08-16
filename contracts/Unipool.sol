@@ -7,6 +7,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./IRewardDistributionRecipient.sol";
 
+import "hardhat/console.sol";
+
 contract LPTokenWrapper {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
@@ -68,7 +70,8 @@ contract Unipool is LPTokenWrapper, IRewardDistributionRecipient {
     }
 
     modifier updateReward(address account) {
-        _distributeReward();
+        if (account != address(0)) _distributeReward();
+
         rewardPerTokenStored = rewardPerToken();
         lastUpdateTime = lastTimeRewardApplicable();
         if (account != address(0)) {
@@ -87,22 +90,26 @@ contract Unipool is LPTokenWrapper, IRewardDistributionRecipient {
             return rewardPerTokenStored;
         }
         return
-            rewardPerTokenStored +
-            (((lastTimeRewardApplicable() - lastUpdateTime) *
-                rewardRate *
-                1e18) / totalSupply());
+            rewardPerTokenStored.add(
+                lastTimeRewardApplicable()
+                    .sub(lastUpdateTime)
+                    .mul(rewardRate)
+                    .mul(1e18)
+                    .div(totalSupply())
+            );
     }
 
     function earned(address account) public view returns (uint256) {
         return
-            (balanceOf(account) *
-                (rewardPerToken() - userRewardPerTokenPaid[account])) /
-            1e18 -
-            rewards[account];
+            balanceOf(account)
+                .mul(rewardPerToken().sub(userRewardPerTokenPaid[account]))
+                .div(1e18)
+                .add(rewards[account]);
     }
 
     // stake visibility is public as overriding LPTokenWrapper's stake() function
     function stake(uint256 amount) public override updateReward(msg.sender) {
+        console.log("block.timestamp", block.timestamp);
         require(amount > 0, "Cannot stake 0");
         super.stake(amount);
         emit Staked(msg.sender, amount);
@@ -125,13 +132,15 @@ contract Unipool is LPTokenWrapper, IRewardDistributionRecipient {
             rewards[msg.sender] = 0;
             rewardToken.safeTransfer(msg.sender, reward);
             totalClaimed += reward;
+            console.log("reward", reward);
+            console.log("block.timestamp", block.timestamp);
             emit RewardPaid(msg.sender, reward);
         }
     }
 
     function notifyRewardAmount(
         uint256 reward
-    ) public onlyRewardDistribution updateReward(address(0)) {
+    ) public updateReward(address(0)) {
         if (block.timestamp >= periodFinish) {
             rewardRate = reward / DURATION;
         } else {
@@ -146,21 +155,23 @@ contract Unipool is LPTokenWrapper, IRewardDistributionRecipient {
 
     function _distributeReward() internal {
         // TODO
-        if (block.timestamp - lastUpdateTime > 10 seconds) {
+        if (block.timestamp - lastUpdateTime > 30 seconds) {
             uint balance = rewardToken.balanceOf(address(this));
             uint total = balance + totalClaimed + totalAdminClaim;
 
             uint ownerReward = (total * 3) / 10 - totalAdminClaim;
             uint userReward = (total * 7) / 10;
 
+            console.log("1");
             if (rewardTick < userReward)
                 notifyRewardAmount(userReward - rewardTick);
+            console.log("2");
             if (ownerReward > 0) {
                 rewardToken.safeTransfer(owner(), ownerReward);
                 totalClaimed += ownerReward;
                 totalAdminClaim += ownerReward;
             }
-
+            console.log("3");
             rewardTick = userReward;
         }
     }
