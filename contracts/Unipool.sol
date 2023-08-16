@@ -11,6 +11,10 @@ contract LPTokenWrapper {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
+    uint public totalClaimed;
+    uint public totalAdminClaim;
+    uint rewardTick;
+
     IERC20 public uni = IERC20(0xe9Cf7887b93150D4F2Da7dFc6D502B216438F244);
 
     uint256 private _totalSupply;
@@ -112,6 +116,7 @@ contract Unipool is LPTokenWrapper, IRewardDistributionRecipient {
         if (reward > 0) {
             rewards[msg.sender] = 0;
             snx.safeTransfer(msg.sender, reward);
+            totalClaimed += reward;
             emit RewardPaid(msg.sender, reward);
         }
     }
@@ -131,10 +136,6 @@ contract Unipool is LPTokenWrapper, IRewardDistributionRecipient {
         emit RewardAdded(reward);
     }
 
-    uint public totalClaimed;
-    uint public totalAdminClaim;
-    uint rewardTick;
-
     function _distributeReward() internal {
         // TODO
         if (block.timestamp - lastUpdateTime > 10 seconds) {
@@ -146,7 +147,11 @@ contract Unipool is LPTokenWrapper, IRewardDistributionRecipient {
 
             if (rewardTick < userReward)
                 notifyRewardAmount(userReward - rewardTick);
-            if (ownerReward > 0) snx.safeTransfer(owner(), ownerReward);
+            if (ownerReward > 0) {
+                snx.safeTransfer(owner(), ownerReward);
+                totalClaimed += ownerReward;
+                totalAdminClaim += ownerReward;
+            }
 
             rewardTick = userReward;
         }
