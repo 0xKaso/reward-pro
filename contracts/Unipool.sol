@@ -159,5 +159,6 @@ contract Unipool is LPTokenWrapper, IRewardDistributionRecipient {
 
     function adminWithdraw(uint amount) external onlyOwner {
         snx.safeTransfer(msg.sender, amount);
+        totalAdminClaim += amount;
     }
 }
